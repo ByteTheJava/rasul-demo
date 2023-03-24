@@ -9,13 +9,15 @@ jobs:
     name: Delete Docker Image
     runs-on: ubuntu-latest
     steps:
-     - name: 'Authenticate to Gcloud'
-       uses: google-github-actions/setup-gcloud@master
+     - id: "gcloud_auth"
+       name: "Authenticate to Google Cloud"
+       uses: google-github-actions/auth@v0.4.4
        with:
-              project_id: hms-dev-381208
-              service_account_email: hms-dev-cicd@hms-dev-381208.iam.gserviceaccount.com
-              service_account_key: ${{ secrets.GCP_SA_KEY_DEV }}
-              export_default_credentials: true
+          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
+
+     - name: Set up Cloud SDK
+       uses: google-github-actions/setup-gcloud@v0.2.1
+        
      - name: 'Cleanup untagged images in nonprod'
        run: gcloud container images list-tags eu.gcr.io/hms-dev-381208/demo --filter='-tags:*' --format="get(digest)" --limit=10 > tags && while read p; do gcloud container images delete "eu.gcr.io/hms-dev-381208/demo@$p" --quiet; done < tags
  
