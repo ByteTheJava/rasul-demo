@@ -1,113 +1,93 @@
-# This workflow build and push a Docker container to Google Artifact Registry and deploy it on Cloud Run when a commit is pushed to the "dev" branch
-#
-# Overview:
-#
-# 1. Authenticate to Google Cloud
-# 2. Authenticate Docker to Artifact Registry
-# 3. Build a docker container
-# 4. Publish it to Google Artifact Registry
-# 5. Deploy it to Cloud Run
-#
-# To configure this workflow:
-#
-# 1. Ensure the required Google Cloud APIs are enabled:
-#
-#    Cloud Run            run.googleapis.com
-#    Artifact Registry    artifactregistry.googleapis.com
-#
-# 2. Create and configure Workload Identity Federation for GitHub (https://github.com/google-github-actions/auth#setting-up-workload-identity-federation)
-#
-# 3. Ensure the required IAM permissions are granted
-#
-#    Cloud Run
-#      roles/run.admin
-#      roles/iam.serviceAccountUser     (to act as the Cloud Run runtime service account)
-#
-#    Artifact Registry
-#      roles/artifactregistry.admin     (project or repository level)
-#
-#    NOTE: You should always follow the principle of least privilege when assigning IAM roles
-#
-# 4. Create GitHub secrets for WIF_PROVIDER and WIF_SERVICE_ACCOUNT
-#
-# 5. Change the values for the GAR_LOCATION, SERVICE and REGION environment variables (below).
-#
-# NOTE: To use Google Container Registry instead, replace ${{ env.GAR_LOCATION }}-docker.pkg.dev with gcr.io
-#
-# For more support on how to run this workflow, please visit https://github.com/marketplace/actions/deploy-to-cloud-run
-#
-# Further reading:
-#   Cloud Run IAM permissions                 - https://cloud.google.com/run/docs/deploying
-#   Artifact Registry IAM permissions         - https://cloud.google.com/artifact-registry/docs/access-control#roles
-#   Container Registry vs Artifact Registry   - https://cloud.google.com/blog/products/application-development/understanding-artifact-registry-vs-container-registry
-#   Principle of least privilege              - https://cloud.google.com/blog/products/identity-security/dont-get-pwned-practicing-the-principle-of-least-privilege
-
-name: Build and Deploy to Cloud Run
+name: DEV - build & Deployment
+# https://github.com/google-github-actions/setup-gcloud..
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ dev ]
 
 env:
-  PROJECT_ID: YOUR_PROJECT_ID # TODO: update Google Cloud project id
-  GAR_LOCATION: YOUR_GAR_LOCATION # TODO: update Artifact Registry location
-  SERVICE: YOUR_SERVICE_NAME # TODO: update Cloud Run service name
-  REGION: YOUR_SERVICE_REGION # TODO: update Cloud Run service region
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_DEV }}
+  RUN_REGION: europe-west4
+  SERVICE_NAME: ${{ secrets.SERVICE_NAME_DEV }}
+  IMAGE_NAME: eu.gcr.io/${{ secrets.GCP_PROJECT_ID_DEV}}/${{ secrets.GCP_APP_NAME_DEV }}
 
 jobs:
-  deploy:
-    # Add 'id-token' with the intended permissions for workload identity federation
-    permissions:
-      contents: 'read'
-      id-token: 'write'
-
+  build:
+    name: Build the Application
     runs-on: ubuntu-latest
+    environment: stage
     steps:
-      - name: Checkout
+    - uses: actions/checkout@v2
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v2
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        
+    - name: Run Unit Test
+      run: mvn -B test --file pom.xml
+  
+    - name: Build Maven project
+      run: |
+        mvn -B package --file pom.xml #-Dmaven.test.skip
+        mkdir staging && cp target/*.jar staging
+
+    - name: Set up a cache for Maven
+      uses: actions/cache@v2
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2  
+        
+    - name: Persist workflow data as artifacts
+      uses: actions/upload-artifact@v2
+      with:
+       name: github-actions-artifact
+       path: staging
+
+           
+#docker build initiation..
+  docker-build:
+    name: docker build and deploy
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
         uses: actions/checkout@v2
 
-      - name: Google Auth
-        id: auth
-        uses: 'google-github-actions/auth@v0'
+      - name: Download Artifact
+        uses: actions/download-artifact@v2
         with:
-          token_format: 'access_token'
-          workload_identity_provider: '${{ secrets.WIF_PROVIDER }}' # e.g. - projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider
-          service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}' # e.g. - my-service-account@my-project.iam.gserviceaccount.com
+          path: staging
 
-      # NOTE: Alternative option - authentication via credentials json
-      # - name: Google Auth
-      #   id: auth
-      #   uses: 'google-github-actions/auth@v0'
-      #   with:
-      #     credentials_json: '${{ secrets.GCP_CREDENTIALS }}''
-
-      # BEGIN - Docker auth and build (NOTE: If you already have a container image, these Docker steps can be omitted)
-
-      # Authenticate Docker to Google Cloud Artifact Registry
-      - name: Docker Auth
-        id: docker-auth
-        uses: 'docker/login-action@v1'
+      - name: project secrets
+        run: echo $PROJECT_ID and gcr.io/${{ secrets.GCP_PROJECT_ID_DEV }}/${{ secrets.GCP_APP_NAME_DEV }} ,${{ secrets.GCP_PROJECT_ID_DEV }}
+          
+   # Configure Workload Identity Federation and generate an access token.
+      - id: "gcloud_auth"
+        name: "Authenticate to Google Cloud"
+        uses: google-github-actions/auth@v0.4.4
         with:
-          username: 'oauth2accesstoken'
-          password: '${{ steps.auth.outputs.access_token }}'
-          registry: '${{ env.GAR_LOCATION }}-docker.pkg.dev'
+          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
 
-      - name: Build and Push Container
-        run: |-
-          docker build -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}" ./
-          docker push "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}"
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0.2.1
 
-      # END - Docker auth and build
+      # Build and push image to Google Container Registry - 
 
-      - name: Deploy to Cloud Run
-        id: deploy
-        uses: google-github-actions/deploy-cloudrun@v0
-        with:
-          service: ${{ env.SERVICE }}
-          region: ${{ env.REGION }}
-          # NOTE: If using a pre-built image, update the image name here
-          image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}
+      # 1. configure docker
+      - name: Configure Docker
+        run: gcloud --quiet auth configure-docker
+      # 2. Build the Docker image
+      - name: Build Docker image
+        run: docker build . --tag $IMAGE_NAME
+      # 3. Push the Docker image to Container Registry
+      - name: Push Docker image
+        run: docker push $IMAGE_NAME
 
-      # If required, use the Cloud Run url output in later steps
-      - name: Show Output
-        run: echo ${{ steps.deploy.outputs.url }}
+      # 4. Deploy image to Cloud Run.
+      - name: Deploy Docker GCR to Cloud Run
+        run: gcloud run deploy ${{ secrets.SERVICE_NAME_DEV }} --quiet --image $IMAGE_NAME --region $RUN_REGION --platform managed --allow-unauthenticated --ingress internal-and-cloud-load-balancing --set-env-vars projectid='352032727422'
+      
