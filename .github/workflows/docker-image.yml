@@ -1,4 +1,4 @@
-name: Delete Docker Image CI
+name: Delete Docker Image CI1
 
 on:
   push:
