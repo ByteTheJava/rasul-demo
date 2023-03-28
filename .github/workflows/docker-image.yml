@@ -1,9 +1,6 @@
 name: Delete Docker Image CI2
 
 on:
-  push:
-    branches:
-      - dev
   workflow_dispatch:
 
 jobs:
