@@ -90,5 +90,11 @@ jobs:
 
       # 4. Deploy image to Cloud Run.
       - name: Deploy Docker GCR to Cloud Run
-        run: gcloud run deploy ${{ env.SERVICE_NAME }} --quiet --image $IMAGE_NAME --region $RUN_REGION --platform managed --allow-unauthenticated --ingress internal-and-cloud-load-balancing --set-env-vars projectid='1086318131246'
+        run: gcloud run deploy ${{ env.SERVICE_NAME }} 
+             --quiet 
+             --image $IMAGE_NAME 
+             --region $RUN_REGION 
+             --platform managed 
+             --allow-unauthenticated
+             --set-env-vars projectid='1086318131246'
       
