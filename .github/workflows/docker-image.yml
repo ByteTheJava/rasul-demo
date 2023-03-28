@@ -19,8 +19,8 @@ jobs:
         
      - name: 'Cleanup untagged images in nonprod'
        run: gcloud container images list-tags eu.gcr.io/hms-dev-381208/demo 
-            --filter='-tags:*' 
+            --filter="timestamp.date('%Y-%m-%d', Z)<$(date --date='-7 days' +'%Y-%m-%d')" 
             --format="get(digest)" 
-            --limit=10 > tags && while read p; do gcloud container images delete "eu.gcr.io/hms-dev-381208/demo@$p" 
+            --limit=1 > tags && while read p; do gcloud container images delete "eu.gcr.io/hms-dev-381208/demo@$p" 
             --quiet; done < tags
  
