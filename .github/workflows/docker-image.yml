@@ -24,8 +24,11 @@ jobs:
         
      - name: 'Cleanup untagged images in nonprod'
        run: gcloud container images list-tags  eu.gcr.io/${{env.PROJECT_ID}}/${{env.CONTAINER_IMAGE_REPO}}
+            --sort-by=~TIMESTAMP
             --filter='-tags:*'
             --format="get(digest)" 
-            --limit=1 > tags && while read p; do gcloud container images delete "eu.gcr.io/${{env.PROJECT_ID}}/${{env.CONTAINER_IMAGE_REPO}}@$p" 
+            --limit=5 > tags && while read p; do gcloud container images delete "eu.gcr.io/${{env.PROJECT_ID}}/${{env.CONTAINER_IMAGE_REPO}}@$p" 
             --quiet; done < tags
+            
+            #--filter="timestamp.date('%Y-%m-%d', Z)<$(date --date='-90 days' +'%Y-%m-%d')" #delete image older than 90Days
  
