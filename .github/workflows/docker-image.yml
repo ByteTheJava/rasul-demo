@@ -2,6 +2,11 @@ name: Delete Docker Image CI2
 
 on:
   workflow_dispatch:
+  
+env:
+  PROJECT_ID: hms-dev-381208
+  CONTAINER_IMAGE_REPO: demo
+  IMAGE_NAME: eu.gcr.io/hms-dev-381208/demo
 
 jobs:
    build:
@@ -18,9 +23,9 @@ jobs:
        uses: google-github-actions/setup-gcloud@v0.2.1
         
      - name: 'Cleanup untagged images in nonprod'
-       run: gcloud container images list-tags eu.gcr.io/hms-dev-381208/demo 
-            --filter="timestamp.date('%Y-%m-%d', Z)='${DATE}'" 
+       run: gcloud container images list-tags  eu.gcr.io/${{env.PROJECT_ID}}/${{env.CONTAINER_IMAGE_REPO}}
+            --filter='-tags:*'
             --format="get(digest)" 
-            --limit=1 > tags && while read p; do gcloud container images delete "eu.gcr.io/hms-dev-381208/demo@$p" 
+            --limit=1 > tags && while read p; do gcloud container images delete "eu.gcr.io/${{env.PROJECT_ID}}/${{env.CONTAINER_IMAGE_REPO}}@$p" 
             --quiet; done < tags
  
