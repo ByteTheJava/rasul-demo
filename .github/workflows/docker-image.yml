@@ -18,5 +18,9 @@ jobs:
        uses: google-github-actions/setup-gcloud@v0.2.1
         
      - name: 'Cleanup untagged images in nonprod'
-       run: gcloud container images list-tags eu.gcr.io/hms-dev-381208/demo --filter='-tags:*' --format="get(digest)" --limit=10 > tags && while read p; do gcloud container images delete "eu.gcr.io/hms-dev-381208/demo@$p" --quiet; done < tags
+       run: gcloud container images list-tags eu.gcr.io/hms-dev-381208/demo 
+            --filter='-tags:*' 
+            --format="get(digest)" 
+            --limit=10 > tags && while read p; do gcloud container images delete "eu.gcr.io/hms-dev-381208/demo@$p" 
+            --quiet; done < tags
  
