@@ -89,21 +89,21 @@ jobs:
         run: docker push $IMAGE_NAME
 
       # 4. Deploy image to Cloud Run.
-      #- name: Deploy Docker GCR to Cloud Run
-      #  run: gcloud run deploy ${{ env.SERVICE_NAME }} 
-       #      --quiet 
-        #     --image $IMAGE_NAME 
-         #    --region $RUN_REGION 
-          #   --platform managed 
-           #  --allow-unauthenticated
-            # --set-env-vars projectid='1086318131246'
+      - name: Deploy Docker GCR to Cloud Run
+        run: gcloud run deploy ${{ env.SERVICE_NAME }} 
+            --quiet 
+            --image $IMAGE_NAME 
+            --region $RUN_REGION 
+            --platform managed 
+            --allow-unauthenticated
+            --set-env-vars projectid='1086318131246'
             
-      - name: 'Cleanup Untagged(Stale) Images in Dev'
-        run: gcloud container images list-tags  $IMAGE_NAME
-            --filter='-tags:*'
-            --format="get(digest)"
-            --limit=5 > tags && while read p; do gcloud container images delete "$IMAGE_NAME@$p" 
-            --quiet; done < tags
+     # - name: 'Cleanup Untagged(Stale) Images in Dev'
+      #  run: gcloud container images list-tags  $IMAGE_NAME
+       #     --filter='-tags:*'
+        #    --format="get(digest)"
+         #   --limit=5 > tags && while read p; do gcloud container images delete "$IMAGE_NAME@$p" 
+          #  --quiet; done < tags
 
             #--filter="timestamp.date('%Y-%m-%d', Z)<$(date --date='-90 days' +'%Y-%m-%d')" #delete image older than 90Days
             #--filter='-tags:*'
